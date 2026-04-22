@@ -1,0 +1,63 @@
+import json
+import re
+import sys
+
+
+def nombre_archivo_valido(base, fallback="salida"):
+    base = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "_", base)
+    base = re.sub(r"\s+", "_", base).strip(" ._")
+    return (base or fallback)[:120]
+
+with open("tabla7seg.json", encoding="utf-8") as f:
+    tabla = json.load(f)["map"]
+
+modo = input("Modo (CC / CA): ").strip().upper()
+
+# Cambia este texto para generar un BIN de prueba sin reescribir la entrada cada vez.
+TEXTO_PRUEBA = "HOLA 123 ABC xyz -_=^"
+
+if len(sys.argv) > 1:
+    texto = " ".join(sys.argv[1:]).strip()
+else:
+    texto = input(f"Texto [ENTER = {TEXTO_PRUEBA}]: ").strip() or TEXTO_PRUEBA
+
+nombre_salida = input("Nombre del archivo .bin [ENTER = usar texto]: ").strip()
+
+if nombre_salida:
+    nombre_base = nombre_archivo_valido(nombre_salida)
+else:
+    nombre_base = nombre_archivo_valido(texto)
+
+if nombre_base.lower().endswith(".bin"):
+    archivo_salida = nombre_base
+else:
+    archivo_salida = f"{nombre_base}.bin"
+
+data = bytearray()
+
+for c in texto:
+
+    val = tabla.get(c, tabla.get(c.upper(), 0))
+
+    if isinstance(val, str):
+        val = int(val, 2)
+
+    if c not in tabla and c.upper() not in tabla:
+        print("Caracter no soportado:", c)
+
+    # common anode
+    if modo == "CA":
+        val = (~val) & 0xFF
+
+    # 🔥 FIX ESPEJO (si tu profe tiene bus invertido)
+    val = int('{:08b}'.format(val)[::-1], 2)
+
+    data.append(val)
+
+data.extend([0x00] * (32768 - len(data)))
+
+with open(archivo_salida, "wb") as f:
+    f.write(data)
+
+print(f"BIN generado ✔: {archivo_salida}")
+print("Preview:", list(data[:32]))
